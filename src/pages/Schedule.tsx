@@ -289,7 +289,7 @@ export default function Schedule() {
             <div className="sticky top-24">
               <div className="mb-4">
                 <Select 
-                  value={selectedEvent} 
+                  value="{selectedEvent} "
                   onValueChange={(value) => {
                     setSelectedEvent(value);
                     const eventName = mockEvents.find(e => e.id.toString() === value)?.name;
