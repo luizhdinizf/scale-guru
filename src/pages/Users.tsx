@@ -3,59 +3,26 @@ import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PlusCircle, Search, Mail, Phone, Clock, Filter, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { mockService, User } from "@/services/mockData";
+import { useAppToast } from "@/hooks/useAppToast";
 
 export default function Users() {
-  const [users, setUsers] = useState([
-    { 
-      id: 1, 
-      name: "Carlos Silva", 
-      email: "carlos.silva@email.com", 
-      phone: "(11) 98765-4321",
-      departments: ["Segurança"],
-      role: "Supervisor",
-      status: "active"
-    },
-    { 
-      id: 2, 
-      name: "Ana Oliveira", 
-      email: "ana.oliveira@email.com", 
-      phone: "(11) 91234-5678",
-      departments: ["Atendimento", "Recepção"],
-      role: "Atendente",
-      status: "active"
-    },
-    { 
-      id: 3, 
-      name: "Marcos Santos", 
-      email: "marcos.santos@email.com", 
-      phone: "(11) 99876-5432",
-      departments: ["TI"],
-      role: "Técnico",
-      status: "inactive"
-    },
-    { 
-      id: 4, 
-      name: "Juliana Costa", 
-      email: "juliana.costa@email.com", 
-      phone: "(11) 95555-1234",
-      departments: ["Administrativo"],
-      role: "Gerente",
-      status: "active"
-    },
-    { 
-      id: 5, 
-      name: "Roberto Almeida", 
-      email: "roberto.almeida@email.com", 
-      phone: "(11) 94444-9876",
-      departments: ["Logística"],
-      role: "Coordenador",
-      status: "pending"
-    },
-  ]);
-  
+  const [users, setUsers] = useState(mockService.getUsers());
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newUser, setNewUser] = useState<Partial<User>>({
+    name: "",
+    email: "",
+    phone: "",
+    departments: [],
+    role: "",
+    status: "active"
+  });
+  
+  const { showSuccess, showError } = useAppToast();
   
   // Filter users based on search term
   const filteredUsers = users.filter(user => 
@@ -90,6 +57,53 @@ export default function Users() {
         return status;
     }
   };
+  
+  const handleCreateUser = () => {
+    setIsDialogOpen(true);
+  };
+  
+  const handleSaveUser = () => {
+    if (!newUser.name || !newUser.email) {
+      showError("Por favor, preencha os campos obrigatórios");
+      return;
+    }
+    
+    try {
+      const createdUser = mockService.createUser({
+        name: newUser.name || "",
+        email: newUser.email || "",
+        phone: newUser.phone || "",
+        departments: newUser.departments || [],
+        role: newUser.role || "",
+        status: newUser.status as "active" | "inactive" | "pending" || "active"
+      });
+      
+      setUsers(mockService.getUsers());
+      setIsDialogOpen(false);
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        departments: [],
+        role: "",
+        status: "active"
+      });
+      
+      showSuccess("Usuário criado com sucesso");
+    } catch (error) {
+      showError("Erro ao criar usuário");
+    }
+  };
+  
+  const handleViewSchedule = (userId: number) => {
+    showSuccess("Visualizando escala do usuário");
+    // In a real app, this would navigate to the user's schedule
+  };
+  
+  const handleMoreOptions = (userId: number) => {
+    showSuccess("Opções adicionais abertas");
+    // In a real app, this would open a dropdown menu
+  };
 
   return (
     <Layout>
@@ -99,7 +113,7 @@ export default function Users() {
             <h1 className="text-3xl font-bold">Usuários</h1>
             <p className="text-muted-foreground mt-1">Gerencie sua equipe e suas permissões</p>
           </div>
-          <Button className="flex items-center gap-2 sm:self-start">
+          <Button className="flex items-center gap-2 sm:self-start" onClick={handleCreateUser}>
             <PlusCircle className="h-4 w-4" />
             Novo Usuário
           </Button>
@@ -116,7 +130,11 @@ export default function Users() {
             />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon">
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => showSuccess("Filtros abertos")}
+            >
               <Filter className="h-4 w-4" />
             </Button>
           </div>
@@ -186,10 +204,20 @@ export default function Users() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleViewSchedule(user.id)}
+                          >
                             <Clock className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleMoreOptions(user.id)}
+                          >
                             <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </div>
@@ -203,7 +231,7 @@ export default function Users() {
                         <PlusCircle className="h-8 w-8 text-muted-foreground mb-2" />
                         <h3 className="text-lg font-medium mb-1">Nenhum usuário encontrado</h3>
                         <p className="text-muted-foreground mb-4">Tente ajustar sua busca ou adicione um novo usuário</p>
-                        <Button>
+                        <Button onClick={handleCreateUser}>
                           <PlusCircle className="h-4 w-4 mr-2" />
                           Adicionar Usuário
                         </Button>
@@ -222,10 +250,19 @@ export default function Users() {
                 <span className="font-medium">{users.length}</span> usuários
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled
+                  onClick={() => showSuccess("Página anterior")}
+                >
                   Anterior
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => showSuccess("Próxima página")}
+                >
                   Próximo
                 </Button>
               </div>
@@ -233,6 +270,67 @@ export default function Users() {
           )}
         </div>
       </div>
+      
+      {/* Dialog for creating new user */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Usuário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="name" className="text-sm font-medium">Nome</label>
+              <Input
+                id="name"
+                value={newUser.name || ""}
+                onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                placeholder="Digite o nome do usuário"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium">E-mail</label>
+              <Input
+                id="email"
+                type="email"
+                value={newUser.email || ""}
+                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                placeholder="exemplo@email.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="phone" className="text-sm font-medium">Telefone</label>
+              <Input
+                id="phone"
+                value={newUser.phone || ""}
+                onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="departments" className="text-sm font-medium">Departamentos</label>
+              <Input
+                id="departments"
+                value={newUser.departments?.join(", ") || ""}
+                onChange={(e) => setNewUser({...newUser, departments: e.target.value.split(", ")})}
+                placeholder="Segurança, Atendimento, etc."
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="role" className="text-sm font-medium">Função</label>
+              <Input
+                id="role"
+                value={newUser.role || ""}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                placeholder="Supervisor, Atendente, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveUser}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

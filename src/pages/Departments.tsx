@@ -3,54 +3,25 @@ import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PlusCircle, Search, Briefcase, Users, ChevronRight, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { mockService, Department } from "@/services/mockData";
+import { useAppToast } from "@/hooks/useAppToast";
 
 export default function Departments() {
-  const [departments, setDepartments] = useState([
-    { 
-      id: 1, 
-      name: "Segurança", 
-      description: "Equipe responsável pela segurança do evento", 
-      members: 12,
-      roles: ["Supervisor", "Agente", "Coordenador"],
-      events: ["Conferência Anual", "Plantão de Fim de Semana"]
-    },
-    { 
-      id: 2, 
-      name: "Atendimento", 
-      description: "Equipe de atendimento ao público", 
-      members: 8,
-      roles: ["Atendente", "Gerente"],
-      events: ["Conferência Anual", "Treinamento de Equipe"]
-    },
-    { 
-      id: 3, 
-      name: "Logística", 
-      description: "Gerenciamento de materiais e transporte", 
-      members: 6,
-      roles: ["Coordenador", "Assistente", "Motorista"],
-      events: ["Conferência Anual"]
-    },
-    { 
-      id: 4, 
-      name: "TI", 
-      description: "Suporte técnico e infraestrutura tecnológica", 
-      members: 5,
-      roles: ["Técnico", "Analista", "Gerente"],
-      events: ["Operação Noturna", "Plantão de Fim de Semana"]
-    },
-    { 
-      id: 5, 
-      name: "Administrativo", 
-      description: "Gestão administrativa e financeira", 
-      members: 4,
-      roles: ["Gerente", "Assistente", "Analista"],
-      events: ["Conferência Anual"]
-    },
-  ]);
-  
+  const [departments, setDepartments] = useState(mockService.getDepartments());
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newDepartment, setNewDepartment] = useState<Partial<Department>>({
+    name: "",
+    description: "",
+    members: 0,
+    roles: [],
+    events: []
+  });
+  
+  const { showSuccess, showError } = useAppToast();
   
   // Filter departments based on search term
   const filteredDepartments = departments.filter(department => 
@@ -59,6 +30,61 @@ export default function Departments() {
     department.roles.some(role => role.toLowerCase().includes(searchTerm.toLowerCase())) ||
     department.events.some(event => event.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  
+  const handleCreateDepartment = () => {
+    setIsDialogOpen(true);
+  };
+  
+  const handleSaveDepartment = () => {
+    if (!newDepartment.name || !newDepartment.description) {
+      showError("Por favor, preencha os campos obrigatórios");
+      return;
+    }
+    
+    try {
+      const createdDepartment = mockService.createDepartment({
+        name: newDepartment.name || "",
+        description: newDepartment.description || "",
+        members: newDepartment.members || 0,
+        roles: newDepartment.roles || [],
+        events: newDepartment.events || []
+      });
+      
+      setDepartments(mockService.getDepartments());
+      setIsDialogOpen(false);
+      setNewDepartment({
+        name: "",
+        description: "",
+        members: 0,
+        roles: [],
+        events: []
+      });
+      
+      showSuccess("Departamento criado com sucesso");
+    } catch (error) {
+      showError("Erro ao criar departamento");
+    }
+  };
+  
+  const handleManageRoles = (departmentId: number) => {
+    showSuccess("Gerenciando funções do departamento");
+    // In a real app, this would open a dialog or navigate to a new page
+  };
+  
+  const handleViewMembers = (departmentId: number) => {
+    showSuccess("Visualizando membros do departamento");
+    // In a real app, this would open a dialog or navigate to a new page
+  };
+  
+  const handleMoreOptions = (departmentId: number) => {
+    showSuccess("Opções adicionais abertas");
+    // In a real app, this would open a dropdown menu
+  };
+  
+  const handleViewEvent = (event: string) => {
+    showSuccess(`Visualizando evento: ${event}`);
+    // In a real app, this would navigate to the event details
+  };
 
   return (
     <Layout>
@@ -68,7 +94,10 @@ export default function Departments() {
             <h1 className="text-3xl font-bold">Departamentos</h1>
             <p className="text-muted-foreground mt-1">Gerencie departamentos e funções</p>
           </div>
-          <Button className="flex items-center gap-2 sm:self-start">
+          <Button 
+            className="flex items-center gap-2 sm:self-start"
+            onClick={handleCreateDepartment}
+          >
             <PlusCircle className="h-4 w-4" />
             Novo Departamento
           </Button>
@@ -103,7 +132,12 @@ export default function Departments() {
                       <p className="text-sm text-muted-foreground">{department.description}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => handleMoreOptions(department.id)}
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </div>
@@ -136,6 +170,7 @@ export default function Departments() {
                       <div 
                         key={index} 
                         className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/80 transition-colors"
+                        onClick={() => handleViewEvent(event)}
                       >
                         <span className="text-sm">{event}</span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -145,8 +180,20 @@ export default function Departments() {
                 </div>
                 
                 <div className="mt-4 pt-4 border-t flex justify-between">
-                  <Button variant="outline" size="sm">Gerenciar Funções</Button>
-                  <Button variant="outline" size="sm">Ver Membros</Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleManageRoles(department.id)}
+                  >
+                    Gerenciar Funções
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleViewMembers(department.id)}
+                  >
+                    Ver Membros
+                  </Button>
                 </div>
               </div>
             ))
@@ -155,7 +202,7 @@ export default function Departments() {
               <Briefcase className="h-12 w-12 text-muted-foreground mb-3" />
               <h3 className="text-xl font-medium mb-1">Nenhum departamento encontrado</h3>
               <p className="text-muted-foreground">Tente ajustar sua busca ou crie um novo departamento</p>
-              <Button className="mt-4">
+              <Button className="mt-4" onClick={handleCreateDepartment}>
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Criar Departamento
               </Button>
@@ -163,6 +210,48 @@ export default function Departments() {
           )}
         </div>
       </div>
+      
+      {/* Dialog for creating new department */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Departamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="name" className="text-sm font-medium">Nome</label>
+              <Input
+                id="name"
+                value={newDepartment.name || ""}
+                onChange={(e) => setNewDepartment({...newDepartment, name: e.target.value})}
+                placeholder="Digite o nome do departamento"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="description" className="text-sm font-medium">Descrição</label>
+              <Input
+                id="description"
+                value={newDepartment.description || ""}
+                onChange={(e) => setNewDepartment({...newDepartment, description: e.target.value})}
+                placeholder="Digite a descrição do departamento"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="roles" className="text-sm font-medium">Funções</label>
+              <Input
+                id="roles"
+                value={newDepartment.roles?.join(", ") || ""}
+                onChange={(e) => setNewDepartment({...newDepartment, roles: e.target.value.split(", ")})}
+                placeholder="Supervisor, Atendente, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveDepartment}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

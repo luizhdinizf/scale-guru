@@ -2,9 +2,13 @@
 import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Filter, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Filter, PlusCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { mockService, mockEvents, mockShifts, Shift } from "@/services/mockData";
+import { useAppToast } from "@/hooks/useAppToast";
 
 // Generate days of month
 const getDaysInMonth = (year: number, month: number) => {
@@ -15,84 +19,23 @@ const getFirstDayOfMonth = (year: number, month: number) => {
   return new Date(year, month, 1).getDay();
 };
 
-// Sample events data
-const eventAssignments = [
-  { 
-    day: 1, 
-    user: "Carlos Silva", 
-    department: "Segurança", 
-    role: "Supervisor", 
-    timeSlot: "08:00 - 16:00"
-  },
-  { 
-    day: 1, 
-    user: "Ana Oliveira", 
-    department: "Atendimento", 
-    role: "Atendente", 
-    timeSlot: "12:00 - 20:00"
-  },
-  { 
-    day: 2, 
-    user: "Marcos Santos", 
-    department: "TI", 
-    role: "Técnico", 
-    timeSlot: "08:00 - 16:00"
-  },
-  { 
-    day: 3, 
-    user: "Juliana Costa", 
-    department: "Administrativo", 
-    role: "Gerente", 
-    timeSlot: "09:00 - 17:00"
-  },
-  { 
-    day: 3, 
-    user: "Roberto Almeida", 
-    department: "Logística", 
-    role: "Coordenador", 
-    timeSlot: "08:00 - 16:00"
-  },
-  { 
-    day: 5, 
-    user: "Carlos Silva", 
-    department: "Segurança", 
-    role: "Supervisor", 
-    timeSlot: "08:00 - 16:00"
-  },
-  { 
-    day: 8, 
-    user: "Ana Oliveira", 
-    department: "Atendimento", 
-    role: "Atendente", 
-    timeSlot: "12:00 - 20:00"
-  },
-  { 
-    day: 8, 
-    user: "Marcos Santos", 
-    department: "TI", 
-    role: "Técnico", 
-    timeSlot: "08:00 - 16:00"
-  },
-  { 
-    day: 10, 
-    user: "Juliana Costa", 
-    department: "Administrativo", 
-    role: "Gerente", 
-    timeSlot: "09:00 - 17:00"
-  },
-  { 
-    day: 15, 
-    user: "Roberto Almeida", 
-    department: "Logística", 
-    role: "Coordenador", 
-    timeSlot: "08:00 - 16:00"
-  },
-];
-
 export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState("1");
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [shifts, setShifts] = useState(mockShifts);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newShift, setNewShift] = useState<Partial<Shift>>({
+    day: 1,
+    month: currentDate.getMonth(),
+    year: currentDate.getFullYear(),
+    user: "",
+    department: "",
+    role: "",
+    timeSlot: ""
+  });
+  
+  const { showSuccess, showError } = useAppToast();
 
   const monthNames = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
@@ -110,6 +53,65 @@ export default function Schedule() {
   
   const nextMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+  
+  const handleCreateShift = (day?: number) => {
+    setNewShift({
+      ...newShift,
+      day: day || 1,
+      month: currentMonth,
+      year: currentYear
+    });
+    setIsDialogOpen(true);
+  };
+  
+  const handleSaveShift = () => {
+    if (!newShift.user || !newShift.department || !newShift.role || !newShift.timeSlot) {
+      showError("Por favor, preencha os campos obrigatórios");
+      return;
+    }
+    
+    try {
+      const createdShift = mockService.createShift({
+        day: newShift.day || 1,
+        month: newShift.month || currentMonth,
+        year: newShift.year || currentYear,
+        user: newShift.user || "",
+        department: newShift.department || "",
+        role: newShift.role || "",
+        timeSlot: newShift.timeSlot || ""
+      });
+      
+      setShifts(mockService.getShifts());
+      setIsDialogOpen(false);
+      setNewShift({
+        day: 1,
+        month: currentMonth,
+        year: currentYear,
+        user: "",
+        department: "",
+        role: "",
+        timeSlot: ""
+      });
+      
+      showSuccess("Turno adicionado com sucesso");
+    } catch (error) {
+      showError("Erro ao adicionar turno");
+    }
+  };
+  
+  const handlePrint = () => {
+    showSuccess("Preparando impressão da escala");
+    // In a real app, this would open a print dialog
+  };
+  
+  const handleExport = () => {
+    showSuccess("Exportando escala");
+    // In a real app, this would download a file
   };
 
   // Generate calendar grid
@@ -131,7 +133,11 @@ export default function Schedule() {
         } else {
           // Valid day cell
           const day = dayCounter;
-          const assignments = eventAssignments.filter(a => a.day === day);
+          const currentShifts = shifts.filter(a => 
+            a.day === day && 
+            a.month === currentMonth && 
+            a.year === currentYear
+          );
           
           rowCells.push(
             <td key={`day-${day}`} className="border p-0.5 md:p-1 align-top">
@@ -140,21 +146,23 @@ export default function Schedule() {
                   <span className="text-xs md:text-sm font-medium">{day}</span>
                 </div>
                 <div className="space-y-1">
-                  {assignments.map((assignment, index) => (
+                  {currentShifts.map((shift, index) => (
                     <div 
                       key={index} 
                       className="p-1 text-xs rounded truncate bg-primary/10 hover:bg-primary/20 cursor-pointer transition-colors"
-                      title={`${assignment.user} - ${assignment.role} (${assignment.timeSlot})`}
+                      title={`${shift.user} - ${shift.role} (${shift.timeSlot})`}
+                      onClick={() => showSuccess(`Detalhes do turno: ${shift.user}`)}
                     >
-                      <div className="font-medium truncate">{assignment.user}</div>
-                      <div className="text-muted-foreground truncate">{assignment.timeSlot}</div>
+                      <div className="font-medium truncate">{shift.user}</div>
+                      <div className="text-muted-foreground truncate">{shift.timeSlot}</div>
                     </div>
                   ))}
-                  {assignments.length === 0 && (
+                  {currentShifts.length === 0 && (
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       className="w-full h-6 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => handleCreateShift(day)}
                     >
                       + Adicionar
                     </Button>
@@ -185,11 +193,18 @@ export default function Schedule() {
             <p className="text-muted-foreground mt-1">Gerencie a escala de trabalho da sua equipe</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:self-start">
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              className="flex items-center gap-2"
+              onClick={() => showSuccess("Gerenciando turnos")}
+            >
               <Users className="h-4 w-4" />
               Gerenciar Turnos
             </Button>
-            <Button className="flex items-center gap-2">
+            <Button 
+              className="flex items-center gap-2"
+              onClick={() => handleCreateShift()}
+            >
               <CalendarIcon className="h-4 w-4" />
               Adicionar à Escala
             </Button>
@@ -200,21 +215,34 @@ export default function Schedule() {
           <div className="w-full lg:w-64">
             <div className="sticky top-24">
               <div className="mb-4">
-                <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                <Select 
+                  value={selectedEvent} 
+                  onValueChange={(value) => {
+                    setSelectedEvent(value);
+                    showSuccess(`Evento selecionado: ${mockEvents.find(e => e.id.toString() === value)?.name}`);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecionar Evento" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Conferência Anual</SelectItem>
-                    <SelectItem value="2">Treinamento de Equipe</SelectItem>
-                    <SelectItem value="3">Plantão de Fim de Semana</SelectItem>
-                    <SelectItem value="4">Operação Noturna</SelectItem>
+                    {mockEvents.map(event => (
+                      <SelectItem key={event.id} value={event.id.toString()}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="mb-4">
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <Select 
+                  value={selectedDepartment} 
+                  onValueChange={(value) => {
+                    setSelectedDepartment(value);
+                    showSuccess(value ? `Departamento filtrado: ${value}` : "Todos os departamentos");
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os Departamentos" />
                   </SelectTrigger>
@@ -282,8 +310,12 @@ export default function Schedule() {
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">Hoje</Button>
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="sm" onClick={handleToday}>Hoje</Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => showSuccess("Filtros abertos")}
+                  >
                     <Filter className="h-4 w-4" />
                   </Button>
                 </div>
@@ -309,16 +341,80 @@ export default function Schedule() {
             
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando <span className="font-medium">{eventAssignments.length}</span> turnos agendados
+                Mostrando <span className="font-medium">
+                  {shifts.filter(s => s.month === currentMonth && s.year === currentYear).length}
+                </span> turnos agendados
               </div>
               <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">Imprimir</Button>
-                <Button variant="outline" size="sm">Exportar</Button>
+                <Button variant="outline" size="sm" onClick={handlePrint}>Imprimir</Button>
+                <Button variant="outline" size="sm" onClick={handleExport}>Exportar</Button>
               </div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Dialog for creating new shift */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Turno</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="user" className="text-sm font-medium">Usuário</label>
+              <Input
+                id="user"
+                value={newShift.user || ""}
+                onChange={(e) => setNewShift({...newShift, user: e.target.value})}
+                placeholder="Nome do usuário"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="department" className="text-sm font-medium">Departamento</label>
+              <Input
+                id="department"
+                value={newShift.department || ""}
+                onChange={(e) => setNewShift({...newShift, department: e.target.value})}
+                placeholder="Departamento"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="role" className="text-sm font-medium">Função</label>
+              <Input
+                id="role"
+                value={newShift.role || ""}
+                onChange={(e) => setNewShift({...newShift, role: e.target.value})}
+                placeholder="Função"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="timeSlot" className="text-sm font-medium">Horário</label>
+              <Input
+                id="timeSlot"
+                value={newShift.timeSlot || ""}
+                onChange={(e) => setNewShift({...newShift, timeSlot: e.target.value})}
+                placeholder="08:00 - 16:00"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="day" className="text-sm font-medium">Dia</label>
+              <Input
+                id="day"
+                type="number"
+                min={1}
+                max={daysInMonth}
+                value={newShift.day || 1}
+                onChange={(e) => setNewShift({...newShift, day: parseInt(e.target.value)})}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveShift}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
