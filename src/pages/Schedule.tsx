@@ -7,8 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Filter, PlusCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockService, mockEvents, mockShifts, Shift } from "@/services/mockData";
+import { mockService, mockEvents, mockShifts, Shift, Event } from "@/services/mockData";
 import { useAppToast } from "@/hooks/useAppToast";
+import { format } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Generate days of month
 const getDaysInMonth = (year: number, month: number) => {
@@ -21,10 +25,13 @@ const getFirstDayOfMonth = (year: number, month: number) => {
 
 export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedEvent, setSelectedEvent] = useState("1");
+  const [selectedEvent, setSelectedEvent] = useState<string>("1");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [shifts, setShifts] = useState(mockShifts);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDateForEvents, setSelectedDateForEvents] = useState<Date | undefined>(undefined);
   const [newShift, setNewShift] = useState<Partial<Shift>>({
     day: 1,
     month: currentDate.getMonth(),
@@ -35,7 +42,7 @@ export default function Schedule() {
     timeSlot: ""
   });
   
-  const { showSuccess, showError } = useAppToast();
+  const { showSuccess, showError, showInfo } = useAppToast();
 
   const monthNames = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
@@ -58,8 +65,19 @@ export default function Schedule() {
   const handleToday = () => {
     setCurrentDate(new Date());
   };
+
+  const openEventDetails = (date: Date) => {
+    setSelectedDateForEvents(date);
+    setIsEventDialogOpen(true);
+  };
+
+  // Get the current selected event data
+  const currentEventData = mockEvents.find(e => e.id.toString() === selectedEvent);
   
   const handleCreateShift = (day?: number) => {
+    if (day) {
+      setSelectedDay(day);
+    }
     setNewShift({
       ...newShift,
       day: day || 1,
@@ -114,6 +132,16 @@ export default function Schedule() {
     // In a real app, this would download a file
   };
 
+  // Format date for display
+  const formatEventDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return format(date, "dd 'de' MMMM', 'yyyy");
+    } catch (error) {
+      return dateStr;
+    }
+  };
+
   // Generate calendar grid
   const generateCalendarGrid = () => {
     const totalCells = firstDay + daysInMonth;
@@ -133,18 +161,63 @@ export default function Schedule() {
         } else {
           // Valid day cell
           const day = dayCounter;
+          const currentDate = new Date(currentYear, currentMonth, day);
           const currentShifts = shifts.filter(a => 
             a.day === day && 
             a.month === currentMonth && 
             a.year === currentYear
           );
           
+          // Check if this day is within the selected event's date range
+          let isEventDay = false;
+          let isEventStart = false;
+          let isEventEnd = false;
+          
+          if (currentEventData) {
+            const eventStart = new Date(currentEventData.startDate);
+            const eventEnd = new Date(currentEventData.endDate);
+            
+            isEventDay = currentDate >= eventStart && currentDate <= eventEnd;
+            isEventStart = currentDate.getDate() === eventStart.getDate() && 
+                           currentDate.getMonth() === eventStart.getMonth() && 
+                           currentDate.getFullYear() === eventStart.getFullYear();
+            isEventEnd = currentDate.getDate() === eventEnd.getDate() && 
+                         currentDate.getMonth() === eventEnd.getMonth() && 
+                         currentDate.getFullYear() === eventEnd.getFullYear();
+          }
+          
           rowCells.push(
-            <td key={`day-${day}`} className="border p-0.5 md:p-1 align-top">
+            <td 
+              key={`day-${day}`} 
+              className={cn(
+                "border p-0.5 md:p-1 align-top relative",
+                isEventDay && "bg-primary/5",
+                isEventStart && "border-l-4 border-l-primary",
+                isEventEnd && "border-r-4 border-r-primary"
+              )}
+            >
               <div className="min-h-[80px] md:min-h-[100px]">
-                <div className="text-right mb-1">
+                <div className={cn(
+                  "text-right mb-1 flex justify-between items-center",
+                  isEventDay && "font-semibold"
+                )}>
+                  {isEventStart && (
+                    <span className="text-xs bg-primary/20 text-primary rounded-sm px-1">
+                      Início
+                    </span>
+                  )}
                   <span className="text-xs md:text-sm font-medium">{day}</span>
                 </div>
+                
+                {isEventDay && (
+                  <div 
+                    className="bg-primary/10 rounded-sm p-1 mb-1 text-xs cursor-pointer"
+                    onClick={() => openEventDetails(currentDate)}
+                  >
+                    <span className="font-semibold">{currentEventData?.name}</span>
+                  </div>
+                )}
+                
                 <div className="space-y-1">
                   {currentShifts.map((shift, index) => (
                     <div 
@@ -219,7 +292,10 @@ export default function Schedule() {
                   value={selectedEvent} 
                   onValueChange={(value) => {
                     setSelectedEvent(value);
-                    showSuccess(`Evento selecionado: ${mockEvents.find(e => e.id.toString() === value)?.name}`);
+                    const eventName = mockEvents.find(e => e.id.toString() === value)?.name;
+                    if (eventName) {
+                      showSuccess(`Evento selecionado: ${eventName}`);
+                    }
                   }}
                 >
                   <SelectTrigger>
@@ -256,6 +332,48 @@ export default function Schedule() {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <Card className="mb-4">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Detalhes do Evento</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2">
+                  {currentEventData ? (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground">Início:</span> {formatEventDate(currentEventData.startDate)}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Fim:</span> {formatEventDate(currentEventData.endDate)}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Status:</span> 
+                        <span className={cn(
+                          "ml-1 px-2 py-0.5 rounded-full text-xs",
+                          currentEventData.status === "active" ? "bg-green-500/20 text-green-600" :
+                          currentEventData.status === "upcoming" ? "bg-blue-500/20 text-blue-600" :
+                          "bg-gray-500/20 text-gray-600"
+                        )}>
+                          {currentEventData.status === "active" ? "Ativo" : 
+                           currentEventData.status === "upcoming" ? "Próximo" : "Concluído"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Departamentos:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {currentEventData.departments.map((dept, index) => (
+                            <span key={index} className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                              {dept}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">Selecione um evento para ver detalhes</p>
+                  )}
+                </CardContent>
+              </Card>
               
               <div className="p-4 border rounded-lg bg-card mb-4">
                 <h3 className="font-medium mb-2">Legenda</h3>
@@ -310,6 +428,28 @@ export default function Schedule() {
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <CalendarIcon className="h-4 w-4 mr-2" />
+                        Escolher Data
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={currentDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setCurrentDate(date);
+                          }
+                        }}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  
                   <Button variant="outline" size="sm" onClick={handleToday}>Hoje</Button>
                   <Button 
                     variant="outline" 
@@ -412,6 +552,81 @@ export default function Schedule() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSaveShift}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog for event details */}
+      <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Evento</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {currentEventData && selectedDateForEvents ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{currentEventData.name}</CardTitle>
+                  <CardDescription>
+                    {format(selectedDateForEvents, "dd 'de' MMMM', 'yyyy")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h3 className="font-medium mb-1">Descrição</h3>
+                    <p className="text-sm text-muted-foreground">{currentEventData.description}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium mb-1">Departamentos</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {currentEventData.departments.map((dept, index) => (
+                        <span key={index} className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                          {dept}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium mb-1">Turnos agendados para este dia</h3>
+                    {shifts.filter(s => 
+                      s.day === selectedDateForEvents.getDate() && 
+                      s.month === selectedDateForEvents.getMonth() && 
+                      s.year === selectedDateForEvents.getFullYear()
+                    ).length > 0 ? (
+                      <div className="space-y-2">
+                        {shifts.filter(s => 
+                          s.day === selectedDateForEvents.getDate() && 
+                          s.month === selectedDateForEvents.getMonth() && 
+                          s.year === selectedDateForEvents.getFullYear()
+                        ).map((shift, index) => (
+                          <div key={index} className="p-2 rounded bg-card border">
+                            <div className="font-medium">{shift.user}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {shift.role} ({shift.timeSlot})
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Nenhum turno agendado para este dia</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <p>Carregando detalhes do evento...</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEventDialogOpen(false)}>Fechar</Button>
+            <Button onClick={() => {
+              setIsEventDialogOpen(false);
+              handleCreateShift(selectedDateForEvents?.getDate());
+            }}>
+              Adicionar Turno
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
